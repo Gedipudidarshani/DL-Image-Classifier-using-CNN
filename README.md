@@ -10,37 +10,22 @@ The MNIST dataset consists of 70,000 grayscale images of handwritten digits (0-9
 Include the neural network model diagram.
 
 ## DESIGN STEPS
-### STEP 1: 
+### STEP 1: Import all the required libraries (PyTorch, TorchVision, NumPy, Matplotlib, etc.).
 
-Write your own steps
+### STEP 2: Download and preprocess the MNIST dataset using transforms.
 
-### STEP 2: 
+### STEP 3: Create a CNN model with convolution, pooling, and fully connected layers.
+### STEP 4: Set the loss function and optimizer. Move the model to GPU if available.
+### STEP 5: Train the model using the training dataset for multiple epochs.
 
-
-
-### STEP 3: 
-
-
-
-### STEP 4: 
-
-
-
-### STEP 5: 
-
-
-
-### STEP 6: 
-
+### STEP 6: Evaluate the model using the test dataset and visualize the results (accuracy, confusion matrix, classification report, sample prediction).
 
 
 
 
 ## PROGRAM
-
-### Name:
-
-### Register Number:
+### Name: GEDIPUDI DARSHANI
+### Register Number:212223230062
 
 ```python
 class CNNClassifier(nn.Module):
@@ -67,17 +52,18 @@ def train_model(model, train_loadr, num_epochs=10):
 
 ## Training Loss per Epoch
 
-Include the Training Loss per epoch
+<img width="622" height="788" alt="image" src="https://github.com/user-attachments/assets/0d34dcca-2985-43dc-850d-44671ff22f01" />
+
 
 ## Confusion Matrix
+<img width="653" height="277" alt="image" src="https://github.com/user-attachments/assets/e9b9605c-53a5-49d4-9682-ce3d9f7fb694" />
 
-Include confusion matrix here
 
 ## Classification Report
 Include classification report here
 
 ### New Sample Data Prediction
-Include your sample input and output here
+<img width="544" height="528" alt="image" src="https://github.com/user-attachments/assets/17fde157-9d46-4132-b914-984db2bd3bb9" />
 
 ## RESULT
-Include your result here
+Thus the CNN model was trained and tested successfully on the MNIST dataset.

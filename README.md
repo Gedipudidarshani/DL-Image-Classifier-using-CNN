@@ -26,201 +26,146 @@ The MNIST dataset consists of 70,000 grayscale images of handwritten digits (0-9
 
 ### Register Number: 212223230062
 
-
 ```
-import torch
+
+import torch as t
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.optim as optim
+import torchvision
+import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
-from torchvision.utils import make_grid
-
-import numpy as np
-import pandas as pd
-from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+from sklearn.metrics import confusion_matrix, classification_report
+
+transform=transforms.Compose([transforms.ToTensor(),transforms.Normalize((0.5,),(0.5,))])
+train_dataset=torchvision.datasets.MNIST(root='./data',train=True,download=True,transform=transform)
+test_dataset=torchvision.datasets.MNIST(root='./data',train=False,download=True,transform=transform)
+
+image,label=train_dataset[0]
+print("Image shape:",image.shape)
+print("Number of training samples:",len(train_dataset))
+
+image,label=test_dataset[0]
+print("Image shape:",image.shape)
+print("Number of testing samples:",len(test_dataset))
+train_loader=DataLoader(train_dataset,batch_size=32,shuffle=True)
+test_loader=DataLoader(test_dataset,batch_size=32,shuffle=False)
+
+class CNNClassifier(nn.Module):
+  def __init__(self):
+    super(CNNClassifier,self).__init__()
+    self.conv1=nn.Conv2d(in_channels=1,out_channels=32,kernel_size=3,padding=1)
+    self.conv2=nn.Conv2d(in_channels=32,out_channels=64,kernel_size=3,padding=1)
+    self.conv3=nn.Conv2d(in_channels=64,out_channels=128,kernel_size=3,padding=1)
+    self.pool=nn.MaxPool2d(kernel_size=2,stride=2)
+    self.fc1=nn.Linear(128*3*3,128)
+    self.fc2=nn.Linear(128,64)
+    self.fc3=nn.Linear(64,10)
+
+  def forward(self,x):
+    x=self.pool(t.relu(self.conv1(x)))
+    x=self.pool(t.relu(self.conv2(x)))
+    x=self.pool(t.relu(self.conv3(x)))
+    x=x.view(x.size(0),-1)
+    x=nn.functional.relu(self.fc1(x))
+    x=nn.functional.relu(self.fc2(x))
+    x=self.fc3(x)
+    return x
+
+from torchsummary import summary
+model=CNNClassifier()
+if t.cuda.is_available():
+  device=t.device("cuda")
+  model.to(device)
+summary(model,input_size=(1,28,28))
+criterion=nn.CrossEntropyLoss()
+optimizer=optim.Adam(model.parameters(),lr=0.001)
+def train_model(model,train_loader,num_epochs):
+  for epoch in range(num_epochs):
+    model.train()
+    running_loss=0.0
+    for images,labels in train_loader:
+      if t.cuda.is_available():
+        images,labels=images.to(device),labels.to(device)
+      optimizer.zero_grad()
+      outputs=model(images)
+      loss=criterion(outputs,labels)
+      loss.backward()
+      optimizer.step()
+      running_loss+=loss.item()
+    print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss/len(train_loader):.4f}")
 
 
-```
+train_model(model,train_loader,num_epochs=10)
 
-```
-transform = transforms.ToTensor()
+def test_model(model, test_loader):
+  model.eval()
+  correct = 0
+  total = 0
+  all_preds = []
+  all_labels = []
+  with t.no_grad():
+    for images, labels in test_loader:
+      if t.cuda.is_available():
+        images, labels = images.to(device), labels.to(device)
 
-train_data = datasets.MNIST(root='../Data', train=True, download=True, transform=transform)
+      outputs = model(images)
+      _, predicted = t.max(outputs, 1)
+      total += labels.size(0)
+      correct += (predicted == labels).sum().item()
+      all_preds.extend(predicted.cpu().numpy())
+      all_labels.extend(labels.cpu().numpy())
 
-test_data = datasets.MNIST(root='../Data', train=False, download=True, transform=transform)
+  accuracy = correct/total
+  print(f"Test Accuracy: {accuracy:.4f}")
 
-train_loader = DataLoader(train_data, batch_size=10, shuffle=True)
-test_loader = DataLoader(test_data, batch_size=10, shuffle=False)
+  cm = confusion_matrix(all_labels, all_preds)
+  plt.figure(figsize=(8, 6))
+  sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=test_dataset.classes, yticklabels=test_dataset.classes)
+  plt.xlabel("Predicted")
+  plt.ylabel("Actual")
+  plt.title("Confusion Matrix")
+  plt.show()
 
+  print("Classification Report:")
+  print(classification_report(all_labels, all_preds, target_names=[str(i) for i in range(10)]))
+test_model(model, test_loader)
 
-```
+def predict_image(model,image_index,dataset):
+  model.eval()
+  image,label=dataset[image_index]
+  if t.cuda.is_available():
+    image=image.to(device)
 
-```
-for i, (X_train, y_train) in enumerate(train_data):
-    break
-
-x = X_train.view(1,1,28,28)
-
-class ConvolutionalNetwork(nn.Module):
-
-    def __init__(self):
-        super().__init__()
-        self.conv1 = nn.Conv2d(1,6,3,1)
-        self.conv2 = nn.Conv2d(6,16,3,1)
-        self.fc1 = nn.Linear(5*5*16,120)
-        self.fc2 = nn.Linear(120,84)
-        self.fc3 = nn.Linear(84,10)
-
-    def forward(self, X):
-        X = F.relu(self.conv1(X))
-        X = F.max_pool2d(X, 2, 2)
-        X = F.relu(self.conv2(X))
-        X = F.max_pool2d(X, 2, 2)
-        X = X.view(-1, 5*5*16)
-        X = F.relu(self.fc1(X))
-        X = F.relu(self.fc2(X))
-        X = self.fc3(X)
-        return F.log_softmax(X, dim=1)
-
-torch.manual_seed(42)
-model = ConvolutionalNetwork()
-model
-
-criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-```
-```
-import time
-start_time = time.time()
-
-# Variables ( Trackers)
-epochs = 5
-train_losses = []
-test_losses = []
-train_correct = []
-test_correct = []
-
-# for loop epochs
-for i in range(epochs):
-
-    trn_corr = 0
-    tst_corr = 0
-
-
-    # Run the training batches
-    for b, (X_train, y_train) in enumerate(train_loader):
-        b+=1
-
-        # Apply the model
-        y_pred = model(X_train)  # we not flatten X-train here
-        loss = criterion(y_pred, y_train)
-
-
-        predicted = torch.max(y_pred.data, 1)[1]
-        batch_corr = (predicted == y_train).sum()  # Trure 1 / False 0 sum()
-        trn_corr += batch_corr
-
-        # Update parameters
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        # Print interim results
-        if b%600 == 0:
-            print(f'epoch: {i}  batch: {b} loss: {loss.item()}')
-
-    train_losses.append(loss)
-    train_correct.append(trn_corr)
-
-    # Run the testing batches
-    with torch.no_grad():
-        for b, (X_test, y_test) in enumerate(test_loader):
-
-            # Apply the model
-            y_val = model(X_test)
-
-            # Tally the number of correct predictions
-            predicted = torch.max(y_val.data, 1)[1]
-            tst_corr += (predicted == y_test).sum()
-
-    loss = criterion(y_val, y_test)
-    test_losses.append(loss)
-    test_correct.append(tst_corr)
-
-current_time = time.time()
-total = current_time - start_time
-print(f'Training took {total/60} minutes')
-
-train_losses = [t.detach().numpy() for t in train_losses]
-test_losses = [t.detach().numpy() for t in test_losses]
-
-plt.plot(train_losses, label='training loss')
-plt.plot(test_losses, label='validation loss')
-plt.title('Loss at the end of each epoch')
-plt.legend();
-plt.show()
-
-plt.plot([t/600 for t in train_correct], label='training accuracy')
-plt.plot([t/100 for t in test_correct], label='validation accuracy')
-plt.title('Accuracy at the end of each epoch')
-plt.legend();
-plt.show()
-
-test_load_all = DataLoader(test_data, batch_size=10000, shuffle=False)
+  with t.no_grad():
+    output=model(image.unsqueeze(0))
+    _,predicted=t.max(output,1)
+  class_names=[str(i) for i in range(10)]
+  plt.imshow(image.cpu().squeeze(0),cmap='gray')
+  plt.title(f"Actual: {class_names[label]}\nPredicted: {class_names[predicted.item()]}")
+  plt.axis("off")
+  plt.show()
+  print(f"Actual: {class_names[label]}\nPredicted: {class_names[predicted.item()]}")
+predict_image(model,image_index=80,dataset=test_dataset)
 
 ```
-```
-with torch.no_grad():
-    correct = 0
-    for X_test, y_test in test_load_all:
-        y_val = model(X_test)  # we don't flatten the data this time
-        predicted = torch.max(y_val,1)[1]
-        correct += (predicted == y_test).sum()
-
-correct.item()
-
-correct.item()/len(test_data)
-
-# print a row of values for reference
-np.set_printoptions(formatter=dict(int=lambda x: f'{x:4}'))
-print(np.arange(10).reshape(1,10))
-print()
-
-# print the confusion matrix
-print(confusion_matrix(predicted.view(-1), y_test.view(-1)))
-
-```
-```
-# single image for test
-plt.imshow(test_data[2019][0].reshape(28,28))
-plt.show()
-
-model.eval()
-with torch.no_grad():
-    new_prediction = model(test_data[2019][0].view(1,1,28,28))
-
-new_prediction.argmax()
-
-
-new_model = ConvolutionalNetwork() # Replace Model with ConvolutionalNetwork
-new_model.eval()
-
-```
-
 ### OUTPUT
 
 ## Training Loss per Epoch
-![image](https://github.com/user-attachments/assets/b8425cb4-5856-410e-aada-c9bc292ac948)
+<img width="327" height="246" alt="image" src="https://github.com/user-attachments/assets/12aa5f94-2a65-4734-a98a-bed25ad74fd1" />
 
 ## Confusion Matrix
-![image](https://github.com/user-attachments/assets/0aef0283-57df-405c-b124-0cbf391de00b)
+<img width="700" height="590" alt="image" src="https://github.com/user-attachments/assets/b8733f0b-59c3-4c83-a3c0-7f142f67afe2" />
+
 
 ## Classification Report
-![image](https://github.com/user-attachments/assets/101b437e-2e5b-4fec-9f43-cdb4adf7fe5e)
+<img width="544" height="377" alt="image" src="https://github.com/user-attachments/assets/91204af7-2fd2-47e7-8d0b-7836c6f5ba56" />
+
 
 ### New Sample Data Prediction
-![image](https://github.com/user-attachments/assets/949f1918-513f-44ee-b38d-e361237ec1c3)
+<img width="487" height="538" alt="image" src="https://github.com/user-attachments/assets/a79f49cf-7976-467f-b2a5-ee6dd11c3e90" />
 
 
 ## RESULT
